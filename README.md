@@ -1,2 +1,2 @@
-# gnKafka - this inlcudes exammples for understanding kafka end to end
+# gnKafka - this inlcudes examples for understanding kafka end to end
 
