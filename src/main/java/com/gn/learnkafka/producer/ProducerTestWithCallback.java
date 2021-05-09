@@ -6,9 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 
 public class ProducerTestWithCallback {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
         Logger logger = LoggerFactory.getLogger(ProducerTestWithCallback.class);
         String bootStrapServers = "127.0.0.1:9092";
         System.out.println("Starting here");
@@ -23,10 +24,12 @@ public class ProducerTestWithCallback {
         KafkaProducer<String, String> producer = new KafkaProducer<String, String>(properties);
 
 
-        for(int i =0 ;i < 100;i++) {
+        for(int i =0 ;i < 50;i++) {
+            String key = "id_" + Integer.toString(i);
             // create a record
-            ProducerRecord<String, String> record = new ProducerRecord<>("gn01", "Hello-" + Integer.toString(i));
+            ProducerRecord<String, String> record = new ProducerRecord<>("gn01", key,"Hello-" + Integer.toString(i));
 
+            logger.info("Key : {}", key  );
             // send data
             producer.send(record, new Callback() {
                 @Override
@@ -34,7 +37,7 @@ public class ProducerTestWithCallback {
                     //
 
                     if (exception == null) {
-                        logger.info("Received new metadata. \n Topic: {}, \n Partition: {}, \n Offset: {} \n TimeStamp: {} ",
+                        logger.info("Received new metadata. \n Topic: {}, \n Partition: ## {}, \n Offset: {} \n TimeStamp: {} ",
                                 metadata.topic(), metadata.partition(), metadata.offset(), metadata.timestamp());
 
                     } else {
@@ -42,7 +45,7 @@ public class ProducerTestWithCallback {
                     }
 
                 }
-            });
+            }).get();// .get to make it synchronize the call
 
         }
 
