@@ -1,6 +1,5 @@
 package com.gn.twitter.producer;
 
-import com.gn.learnkafka.producer.ProducerTestWithCallback;
 import com.google.common.collect.Lists;
 import com.twitter.hbc.ClientBuilder;
 import com.twitter.hbc.core.Client;
@@ -11,8 +10,7 @@ import com.twitter.hbc.core.endpoint.StatusesFilterEndpoint;
 import com.twitter.hbc.core.processor.StringDelimitedProcessor;
 import com.twitter.hbc.httpclient.auth.Authentication;
 import com.twitter.hbc.httpclient.auth.OAuth1;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,23 +27,13 @@ public class TwitterProducer {
     String consumerSecret = "1H5C0DPRVTjDDVm5vWTfVQBu63EQGo8o8WXyKpW37Blqkop4Ae";
     String token = "86063644-KUkE7N6xzXbiNmQzvPQlfyHZZ2dVE5TsHUAb5njB0";
     String secret = "UxVg8UAPjnyadoqxA3afUM6XQ5wpIFBGR2XV51lOVL6am";
+
+
     public TwitterProducer() {
 
     }
 
     public static void main(String[] args) {
-
-        String bootStrapServers = "127.0.0.1:9092";
-        String topic = "twitter_topic";
-        logger.info("Starting twitter producer...");
-        // create producer properties
-        Properties properties = new Properties();
-        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootStrapServers);
-        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-
-        // create the producer
-        KafkaProducer<String, String> producer = new KafkaProducer<String, String>(properties);
 
         new TwitterProducer().run();
     }
@@ -57,6 +45,20 @@ public class TwitterProducer {
 
        // connect to client
        client.connect();
+
+        // create a kafka producer
+        KafkaProducer<String, String> producer = createKafkaProducer();
+
+        Runtime.getRuntime().addShutdownHook(new Thread( () -> {
+            logger.info("Stopping application ...");
+            logger.info("shutting down twitter client...");
+            client.stop();
+
+            logger.info("closing producer...");
+            producer.close();
+
+            logger.info("Done !!!");
+        }));
 
         // on a different thread, or multiple different threads....
         while (!client.isDone()) {
@@ -70,14 +72,37 @@ public class TwitterProducer {
 
             if(msg != null) {
                 logger.info(msg);
+                producer.send(new ProducerRecord<>("twitter_tweet", null, msg), ((metadata, exception) -> {
+                    if(exception!=null) {
+                        logger.error("Error while producing message" , exception);
+                    }
+                }));
             }
 
 
         }
-        // create a kafka producer
 
 
         // loop to send tweets to kafka
+    }
+
+    private KafkaProducer<String, String> createKafkaProducer() {
+        String bootStrapServers = "127.0.0.1:9092";
+        String topic = "twitter_topic";
+        logger.info("Starting twitter producer...");
+        // create producer properties
+        Properties properties = new Properties();
+        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootStrapServers);
+        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        properties.setProperty(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        properties.setProperty(ProducerConfig.ACKS_CONFIG,"all");
+        properties.setProperty(ProducerConfig.RETRIES_CONFIG,Integer.toString(Integer.MAX_VALUE));
+        properties.setProperty(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION,"5");
+        KafkaProducer<String, String> producer = new KafkaProducer<String, String>(properties);
+
+        return producer;
+
     }
 
     public Client createTwitterClient(BlockingQueue<String> msgQueue) {
@@ -87,7 +112,7 @@ public class TwitterProducer {
         StatusesFilterEndpoint hosebirdEndpoint = new StatusesFilterEndpoint();
         // Optional: set up some followings and track terms
         List<Long> followings = Lists.newArrayList(1234L, 566788L);
-        List<String> terms = Lists.newArrayList("dogecoin");
+        List<String> terms = Lists.newArrayList("Oxygen");
         hosebirdEndpoint.followings(followings);
         hosebirdEndpoint.trackTerms(terms);
 
